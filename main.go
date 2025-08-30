@@ -4,6 +4,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/internal/database"
 
@@ -26,6 +28,30 @@ type apiConfig struct {
 type thumbnail struct {
 	data      []byte
 	mediaType string
+}
+
+func (c apiConfig) getBaseURL() string {
+	return "http://localhost:" + c.port + "/"
+}
+
+func (c apiConfig) getAssetURL() string {
+	return filepath.Join(c.getBaseURL(), c.assetsRoot)
+}
+
+func getFileExt(contentHeader string) string {
+	parts := strings.Split(contentHeader, "/")
+	//fmt.Println(parts[0], parts[1])
+	return parts[1]
+}
+
+var validThumbnails = map[string]struct{}{
+	"image/png":  struct{}{},
+	"image/jpeg": struct{}{},
+}
+
+func isValidThumbnail(contentType string) bool {
+	_, ok := validThumbnails[contentType]
+	return ok
 }
 
 func main() {
@@ -103,7 +129,7 @@ func main() {
 	mux.Handle("/app/", appHandler)
 
 	assetsHandler := http.StripPrefix("/assets", http.FileServer(http.Dir(assetsRoot)))
-	mux.Handle("/assets/", cacheMiddleware(assetsHandler))
+	mux.Handle("/assets/", noCacheMiddleware(assetsHandler))
 
 	mux.HandleFunc("POST /api/login", cfg.handlerLogin)
 	mux.HandleFunc("POST /api/refresh", cfg.handlerRefresh)
@@ -126,6 +152,6 @@ func main() {
 		Handler: mux,
 	}
 
-	log.Printf("Serving on: http://localhost:%s/app/\n", port)
+	log.Printf("Serving on: %sapp/\n", cfg.getBaseURL())
 	log.Fatal(srv.ListenAndServe())
 }

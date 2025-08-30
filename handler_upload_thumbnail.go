@@ -1,10 +1,12 @@
 package main
 
 import (
+	"crypto/rand"
 	"encoding/base64"
-	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 
 	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/internal/auth"
 	"github.com/google/uuid"
@@ -30,7 +32,7 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	fmt.Println("uploading thumbnail for video", videoID, "by user", userID)
+	//log.Println("uploading thumbnail for video ", videoID, " by user ", userID)
 
 	const maxMemory = 10 << 20
 	err = r.ParseMultipartForm(maxMemory)
@@ -50,10 +52,8 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		respondWithError(w, http.StatusBadRequest, "Missing media type", err)
 		return
 	}
-
-	bytes, err := io.ReadAll(file)
-	if err != nil {
-		respondWithError(w, http.StatusBadRequest, "Couldn't read file", err)
+	if !isValidThumbnail(mediaType) {
+		respondWithError(w, http.StatusBadRequest, "Invalid media type", err)
 		return
 	}
 
@@ -66,9 +66,27 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		respondWithError(w, http.StatusUnauthorized, "Access denied", err)
 		return
 	}
-
-	newUrl := "data:" + mediaType + ";base64," + base64.StdEncoding.EncodeToString(bytes)
-	video.ThumbnailURL = &newUrl
+	//fmt.Println("header: ", mediaType, " ext: ", getFileExt(mediaType))
+	var nameBytes [32]byte
+	_, err = rand.Read(nameBytes[:])
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Can't create stupid filename", err)
+		return
+	}
+	stupidName := base64.RawURLEncoding.EncodeToString(nameBytes[:])
+	path := filepath.Join(cfg.assetsRoot, stupidName+"."+getFileExt(mediaType))
+	thumbFile, err := os.Create(path)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Can't create thumbnail", err)
+		return
+	}
+	_, err = io.Copy(thumbFile, file)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Can't save thumbnail", err)
+		return
+	}
+	thumbUrl := cfg.getBaseURL() + path
+	video.ThumbnailURL = &thumbUrl
 
 	err = cfg.db.UpdateVideo(video)
 	if err != nil {
