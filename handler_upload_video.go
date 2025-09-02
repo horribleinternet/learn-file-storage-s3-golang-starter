@@ -68,15 +68,16 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	defer os.Remove(temp.Name())
-	defer temp.Close()
 	_, err = io.Copy(temp, file)
+	temp.Close()
 	if err != nil {
 		respondWithError(w, http.StatusInsufficientStorage, "Unable to save video", err)
 		return
 	}
-	_, err = temp.Seek(0, io.SeekStart)
+
+	processedName, err := processVideoForFastStart(temp.Name())
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Unable to rewind video", err)
+		respondWithError(w, http.StatusInternalServerError, "Can't process video", err)
 		return
 	}
 
@@ -88,13 +89,21 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 	}
 	key := base64.RawURLEncoding.EncodeToString(keyBits[:]) + ".mp4"
 
-	ratioStr, err := getVideoAspectRatio(temp.Name())
+	ratioStr, err := getVideoAspectRatio(processedName)
 	if err != nil {
 		respondWithError(w, http.StatusUnsupportedMediaType, "Invalid media file", err)
 		return
 	}
+	defer os.Remove(processedName)
+	processed, err := os.Open(processedName)
+	if err != nil {
+		respondWithError(w, http.StatusUnsupportedMediaType, "Can't open processed video", err)
+		return
+	}
+	defer processed.Close()
+
 	key = getRatioName(ratioStr) + "/" + key
-	_, err = cfg.s3Client.PutObject(r.Context(), &s3.PutObjectInput{Bucket: &cfg.s3Bucket, Key: &key, Body: temp, ContentType: &mediaType})
+	_, err = cfg.s3Client.PutObject(r.Context(), &s3.PutObjectInput{Bucket: &cfg.s3Bucket, Key: &key, Body: processed, ContentType: &mediaType})
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Unable to store video", err)
 		return
