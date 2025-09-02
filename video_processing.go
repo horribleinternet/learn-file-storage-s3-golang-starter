@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os/exec"
 )
 
@@ -65,11 +66,14 @@ func extractDim(c Container) (width, height int, err error) {
 }
 
 func getVideoAspectRatio(filePath string) (string, error) {
-	command := exec.Command("ffprobe", "-v error", "-print_format json", "-show_streams", filePath)
+	command := exec.Command("ffprobe", "-v", "error", "-print_format", "json", "-show_streams", filePath)
 	buffer := bytes.NewBuffer(make([]byte, 0))
+	errbuf := bytes.NewBuffer(make([]byte, 0))
 	command.Stdout = buffer
+	command.Stderr = errbuf
 	err := command.Run()
 	if err != nil {
+		log.Println(errbuf.String())
 		return "", err
 	}
 	var vid Container
