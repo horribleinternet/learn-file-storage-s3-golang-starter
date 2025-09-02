@@ -53,7 +53,7 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	if !isValidThumbnail(mediaType) {
-		respondWithError(w, http.StatusBadRequest, "Invalid media type", err)
+		respondWithError(w, http.StatusUnsupportedMediaType, "Invalid media type", err)
 		return
 	}
 
