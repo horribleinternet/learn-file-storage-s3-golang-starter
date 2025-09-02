@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -38,6 +39,11 @@ func (c apiConfig) getBaseURL() string {
 	return "http://localhost:" + c.port + "/"
 }
 
+func (c apiConfig) getS3Url() string {
+	return fmt.Sprintf("https://%s.s3.%s.amazonaws.com/", c.s3Bucket, c.s3Region)
+
+}
+
 func (c apiConfig) getAssetURL() string {
 	return filepath.Join(c.getBaseURL(), c.assetsRoot)
 }
@@ -53,8 +59,17 @@ var validThumbnails = map[string]struct{}{
 	"image/jpeg": struct{}{},
 }
 
+var validVideos = map[string]struct{}{
+	"video/mp4": struct{}{},
+}
+
 func isValidThumbnail(contentType string) bool {
 	_, ok := validThumbnails[contentType]
+	return ok
+}
+
+func isValidVideo(contentType string) bool {
+	_, ok := validVideos[contentType]
 	return ok
 }
 
