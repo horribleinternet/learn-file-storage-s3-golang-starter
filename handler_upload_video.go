@@ -61,6 +61,7 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		respondWithError(w, http.StatusUnsupportedMediaType, "Invalid media type", err)
 		return
 	}
+
 	temp, err := os.CreateTemp("", "tubely-*.mp4")
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Unable to open video", err)
@@ -78,6 +79,7 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		respondWithError(w, http.StatusInternalServerError, "Unable to rewind video", err)
 		return
 	}
+
 	var keyBits [32]byte
 	_, err = rand.Read(keyBits[:])
 	if err != nil {
@@ -86,6 +88,12 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 	}
 	key := base64.RawURLEncoding.EncodeToString(keyBits[:]) + ".mp4"
 
+	ratioStr, err := getVideoAspectRatio(temp.Name())
+	if err != nil {
+		respondWithError(w, http.StatusUnsupportedMediaType, "Invalid media file", err)
+		return
+	}
+	key = getRatioName(ratioStr) + "/" + key
 	_, err = cfg.s3Client.PutObject(r.Context(), &s3.PutObjectInput{Bucket: &cfg.s3Bucket, Key: &key, Body: temp, ContentType: &mediaType})
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Unable to store video", err)
